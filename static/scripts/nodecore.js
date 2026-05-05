@@ -109,7 +109,7 @@ class NumberAnimate {
         this.holder = undefined;
     }
 
-    to({ value, duration, pre, post }) {
+    to({ value, wait, duration, pre, post }) {
         if (this.holder !== undefined) {
             this.holder.quit();
         }
@@ -117,7 +117,7 @@ class NumberAnimate {
         let start = this.value;
         let delta = value - this.value;
         this.holder = animate({
-            wait:  0,
+            wait:     wait || 0,
             duration: duration,
             timing:   this.timing,
             callback: (time) => this.value = start + delta * time,
@@ -245,9 +245,10 @@ function drawOnComponent({ ctx, pos, size, lineWidth, lineCount, icon, colors })
 // =========== events =========== 
 
 class Events {
-    constructor(canvas) {
+    constructor(ctx, canvas) {
         this.objects = [ ];
 
+        this.ctx = ctx;
         this.canvas = canvas;
 
         this.mousemoveListeners = [ ];
@@ -259,12 +260,20 @@ class Events {
             this.keydownListeners.forEach(({ listener }) => listener(event));
         });
         document.addEventListener('mousemove', (event) => {
+            event.posX = event.clientX - this.translate.offset.getX() - canvas.getBoundingClientRect().left;
+            event.posY = event.clientY - this.translate.offset.getY() - canvas.getBoundingClientRect().top;
+            // event.posX = event.clientX - this.translate.offset.getX();
+            // event.posY = event.clientY - this.translate.offset.getY();
             this.mousemoveListeners.forEach(({ listener }) => listener(event));
         });
         document.addEventListener('mousedown', (event) => {
+            event.posX = event.clientX - this.translate.offset.getX() - canvas.getBoundingClientRect().left;
+            event.posY = event.clientY - this.translate.offset.getY() - canvas.getBoundingClientRect().top;
             this.mousedownListeners.forEach(({ listener }) => listener(event));
         });
         document.addEventListener('mouseup', (event) => {
+            event.posX = event.clientX - this.translate.offset.getX() - canvas.getBoundingClientRect().left;
+            event.posY = event.clientY - this.translate.offset.getY() - canvas.getBoundingClientRect().top;
             this.mouseupListeners.forEach(({ listener }) => listener(event));
         });
 
@@ -277,13 +286,13 @@ class Events {
         this.lastMouseMove = undefined;
 
         this.add('mousedown', (event) => {
-            if (document.elementFromPoint(event.clientX, event.clientY) !== canvas || !this.selection) {
+            if (document.elementFromPoint(event.clientX, event.clientY) !== canvas || !this.selection || event.button !== 0) {
                 return;
             }
 
             this.pressed = true;
 
-            let select = this.objects.filter(({ object }) => object.collision(event.clientX, event.clientY))
+            let select = this.objects.filter(({ object }) => object.collision(event.posX, event.posY))
                                 .sort((a, b) => b.index - a.index)[0];
             if (select !== undefined) {
                 if (!event.shiftKey && !this.selected.has(select.object)) {
@@ -344,12 +353,12 @@ class Events {
         this.clicking = true;
 
         this.add('mouseup', (event) => {
-            if (document.elementFromPoint(event.clientX, event.clientY) !== this.canvas || !this.clicking) {
+            if (document.elementFromPoint(event.posX, event.posY) !== this.canvas || !this.clicking) {
                 return;
             }
 
             if (!event.shiftKey) {
-                let click = this.objects.filter(({ object }) => object.collision(event.clientX, event.clientY))
+                let click = this.objects.filter(({ object }) => object.collision(event.posX, event.posY))
                                     .sort((a, b) => b.index - a.index)[0];
                 if (click !== undefined && !click.object.moving) {
                     Events.invoke(click.object, 'click', event);
@@ -364,7 +373,7 @@ class Events {
         this.add('mousemove', (event) => {
             if (this.hovering) {
                 this.objects.forEach(({ object, index }) => {
-                    let inside = object.collision(event.clientX, event.clientY);
+                    let inside = object.collision(event.posX, event.posY);
                     if (object.hovered === undefined) {
                         object.hovered = false;
                     }
@@ -385,12 +394,12 @@ class Events {
         this.mousedownup = true;
 
         this.add('mousedown', (event) => {
-            if (document.elementFromPoint(event.clientX, event.clientY) !== this.canvas || !this.mousedownup) {
+            if (document.elementFromPoint(event.posX, event.posY) !== this.canvas || !this.mousedownup) {
                 return;
             }
 
             this.objects.forEach(({ object, index }) => {
-                if (object.collision(event.clientX, event.clientY)) {
+                if (object.collision(event.posX, event.posY)) {
                     Events.invoke(object, 'mousedown', event);
                     object.pressed = true;
                 }
@@ -448,6 +457,7 @@ class Events {
 
 class Component {
     constructor(pos, size, style) {
+        this.id    = crypto.randomUUID();
         this.pos   = pos;
         this.size  = size;
         this.style = style;
@@ -457,7 +467,7 @@ class Component {
         this.input  = new Socket(this, 'input');
         this.output = new Socket(this, 'output');
 
-        this.animate = true;
+        this.animate = false;
         this.hover   = {
             visible: false,
             size:    new NumberAnimate(0, (time) => time)
@@ -588,14 +598,14 @@ class Component {
 
     // animate
 
-    appearance(duration) {
+    appearance({ wait, duration }) {
         this.opacity.set(0);
         this.opacity.to({
             value:    1,
             duration: 500
         });
         animateFrames({
-            wait:     0,
+            wait:     wait || 0,
             duration: duration || 400,
             timing:   Times.linear,
             frames: [
@@ -627,99 +637,6 @@ class Component {
             },
             post: () => this.animate = false
         });
-    }
-}
-
-class Gate extends Component {
-    static DEFAULT_SIZE = 70;
-    static TICK         = 75;
-
-    constructor(pos, expr, style) {
-        super(pos, Gate.DEFAULT_SIZE, style);
-        this.expr = expr;
-        
-        this.tick = undefined;
-    }
-
-    // eval
-
-    evaluate(args, time) {
-        let state = args.length === 0 ? false : this.expr(args, time);
-        if (state) {
-            this.tick = animate({
-                wait:     Gate.TICK,
-                duration: 2,
-                timing:   (time) => time,
-                callback: (time) => {  },
-
-                post: () => {
-                    this.state = true;
-                    this.tick  = undefined;
-                }
-            });
-        } else {
-            this.tick = animate({
-                wait:     Gate.TICK,
-                duration: 2,
-                timing:   (time) => time,
-                callback: (time) => {  },
-                
-                post: () => {
-                    this.state = false;
-                    this.tick  = undefined;
-                }
-            });
-        }
-    }
-}
-
-class Lamp extends Component {
-    static DEFAULT_SIZE = 70;
-
-    constructor(pos) {
-        super(pos, Lamp.DEFAULT_SIZE, {
-            text: 'lamp',
-            icon: () => { },
-            disable: { color100: '#050505', color200: '#444444', color300: '#828282' },
-            enable:  { color100: '#EEDC5E', color200: '#6B632B', color300: '#EEDC5E' }
-        });
-        this.output = undefined;
-    }
-
-    evaluate(args, time) {
-        this.state = args.reduce((a, b) => a && b);
-    }
-}
-
-class Switch extends Component {
-    static DEFAULT_SIZE = 70;
-
-    constructor(pos) {
-        super(pos, Switch.DEFAULT_SIZE, {
-            text: 'switch',
-            icon: () => { },
-            disable: { color100: '#050505', color200: '#444444', color300: '#828282' },
-            enable:  { color100: '#EEDC5E', color200: '#6B632B', color300: '#EEDC5E' }
-        });
-        this.input = undefined;
-    }
-
-    click(event, time) {
-        this.state = !this.state;
-    }
-}
-
-class Generator extends Component {
-    static DEFAULT_SIZE = 70;
-
-    constructor(pos) {
-        super(pos, Generator.DEFAULT_SIZE, {
-            text: 'switch',
-            icon: () => { },
-            disable: { color100: '#050505', color200: '#444444', color300: '#828282' },
-            enable:  { color100: '#EEDC5E', color200: '#6B632B', color300: '#EEDC5E' }
-        });
-        this.input = undefined;
     }
 }
 
@@ -782,7 +699,7 @@ class Pipe {
         this.route   = [ ];
         this.animate = {
             visible: false,
-            value:   new NumberAnimate(0, Times.ease)
+            value:   new NumberAnimate(0, Times.linear)
         };
     }
 
@@ -838,8 +755,6 @@ class Pipe {
             let index = Math.trunc(this.animate.value.get());
             let value = this.animate.value.get() % 1;
 
-            // console.log(Math.trunc(this.animate.value.get()));
-
             ctx.beginPath();
             ctx.moveTo(this.route[0].getX(), this.route[0].getY());
             for (let i = 1; i <= index; ++i) {
@@ -890,10 +805,11 @@ class Pipe {
 
     // animate 
 
-    appearance(duration) {
+    appearance({ wait, duration }) {
         this.animate.value.set(0);
         this.animate.value.to({
             value:    (this.route.length - 1),
+            wait:     wait || 0,
             duration: duration || 800,
             pre:  () => this.animate.visible = true,
             post: () => this.animate.visible = false
@@ -919,8 +835,8 @@ class Network {
         this.events = events;
         events.add('mousemove', (event) => {
             if (this.pipe !== undefined) { 
-                let x = event.clientX;
-                let y = event.clientY;
+                let x = event.posX;
+                let y = event.posY;
 
                 if (this.pipe.end instanceof FollowPoint) {
                     this.pipe.start.set(x, y);
@@ -949,61 +865,6 @@ class Network {
         };
         this.components.filter(e => e instanceof Lamp).forEach(lamp => next(lamp));
         this.components.filter(e => e instanceof Gate).forEach(gate => next(gate));
-    }
-
-    // add elements
-
-    pushGate(pos, expr, style) {
-        let gate = new Gate(pos, expr, style);
-
-        this.setSocketEvent(gate.input);
-        this.setSocketEvent(gate.output);
-        this.events.notice(gate, 0);
-        this.events.notice(gate.input, 1);
-        this.events.notice(gate.output, 1);
-
-
-        this.components.push(gate);
-        this.sockets.push(gate.input, gate.output);
-
-        return gate;
-    }
-
-    pushLamp(pos) {
-        let lamp = new Lamp(pos);
-
-        this.setSocketEvent(lamp.input);
-        this.events.notice(lamp, 0);
-        this.events.notice(lamp.input, 1);
-        
-        this.components.push(lamp);
-        this.sockets.push(lamp.input);
-
-        return lamp;
-    }
-
-
-    pushSwitch(pos) {
-        let swtch = new Switch(pos);
-
-        this.setSocketEvent(swtch.output);
-        this.events.notice(swtch, 0);
-        this.events.notice(swtch.output, 1);
-
-        this.components.push(swtch);
-        this.sockets.push(swtch.output);
-
-        return swtch;
-    }
-
-    // save/load
-
-    getMap() {
-        
-    }
-
-    setMap(map) {
-        
     }
 
     // operation
@@ -1047,22 +908,26 @@ class Network {
         components.forEach(component => this.deleteComponent(component));
     }
 
+    clear() {
+        this.deleteComponents([...this.components]);    
+    }
+
     // pipeline
     
     setSocketEvent(socket) {
         socket.mousedown = (event) => {
             this.pipe = socket.type === 'input' ?
-                                new Pipe(undefined, socket.component, new Point(event.clientX, event.clientY), socket.pos) :
-                                new Pipe(socket.component, undefined, socket.pos, new Point(event.clientX, event.clientY));
+                                new Pipe(undefined, socket.component, new Point(event.posX, event.posY), socket.pos) :
+                                new Pipe(socket.component, undefined, socket.pos, new Point(event.posX, event.posY));
             this.start = socket;
         };
         socket.mouseup = (event) => {
-            let finded = this.sockets.find(e => e.collision(event.clientX, event.clientY));
+            let finded = this.sockets.find(e => e.collision(event.posX, event.posY));
             if (finded !== undefined && socket.type !== finded.type) {
                 if (socket.type === 'output') {
-                    this.linkingComponents(socket, finded);
+                    this.linking(socket.component, finded.component);
                 } else {
-                    this.linkingComponents(finded, socket);
+                    this.linking(finded.component, socket.component);
                 }
             }
 
@@ -1071,21 +936,21 @@ class Network {
         };
     }
 
-    linkingComponents(output, input) {
-        if (output.component !== input.component) {
+    linking(start, end) {
+        if (start !== end) {
             let possible = true;
-            let connection = this.connections.get(input.component);
+            let connection = this.connections.get(end);
             if (connection === undefined) {
-                this.connections.set(input.component, new Set([ output.component ]));
+                this.connections.set(end, new Set([ start ]));
             } else {
-                possible = !connection.has(output.component);
+                possible = !connection.has(start);
                 if (possible) {
-                    connection.add(output.component);
+                    connection.add(start);
                 }
             }
-    
+
             if (possible) {
-                this.pipes.push(new Pipe(output.component, input.component, output.pos, input.pos));
+                this.pipes.push(new Pipe(start, end, start.output.pos, end.input.pos));
             }
         }
     }
@@ -1110,55 +975,25 @@ class Network {
         this.components.forEach(e => e.draw(ctx, time));
     }
 
+    // animate
+
     appearance() {
-        this.components.forEach(component => setTimeout(() => component.appearance(), Math.random() * 200 + 50));
-        this.pipes.forEach(pipe => setTimeout(() => pipe.appearance(Math.random() * 300 + 700), Math.random() * 200 + 50));
+        const random = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+        this.components.forEach(component => {
+            component.appearance({
+                wait:     random(10, 300),
+                duration: random(500, 550)
+            });
+        });
+        this.pipes.forEach((pipe) => {
+            pipe.prepareDraw();
+            pipe.appearance({
+                wait:     random(300, 300),
+                duration: random(800, 1000)
+            });
+        });
     }
-}
-
-const AND_STYLE = {
-    text: 'and',
-    icon: (pos, color, ctx) => {
-        drawText({
-            ctx:      ctx,
-            pos:      pos,
-            text:     '&',
-            fontSize: '30px',
-            color:     color
-        });
-    },
-    disable: { color100: '#050505', color200: '#444444', color300: '#828282' },
-    enable:  { color100: '#304A41', color200: '#445C54', color300: '#7EBDAE' }
-};
-
-const OR_STYLE = {
-    text: 'or',
-    icon: (pos, color, ctx) => {
-        drawText({
-            ctx:      ctx,
-            pos:      pos,
-            text:     '|',
-            fontSize: '30px',
-            color:     color
-        });
-    },
-    disable: { color100: '#050505', color200: '#444444', color300: '#828282' },
-    enable:  { color100: '#4A3D7B', color200: '#674C9E', color300: '#9A74DE' }
-};
-
-const NOT_STYLE = {
-    text: 'not',
-    icon: (pos, color, ctx) => {
-        drawText({
-            ctx:      ctx,
-            pos:      pos,
-            text:     '~',
-            fontSize: '30px',
-            color:     color
-        });
-    },
-    disable: { color100: '#050505', color200: '#444444', color300: '#828282' },
-    enable:  { color100: '#99125C', color200: '#AA3274', color300: '#DA1580' }
 }
 
 class NodeEngine {
@@ -1166,8 +1001,38 @@ class NodeEngine {
         this.ctx    = ctx;
         this.canvas = canvas;
 
-        this.events  = new Events(canvas);
+        this.events  = new Events(ctx, canvas);
         this.network = new Network(this.events);
+
+        this.translate = {
+            dragging: false,
+            start:    new Point(0, 0),
+            offset:   new Point(0, 0)
+        };
+        this.events.add('mousedown', (event) => {
+            if (event.button === 1) {
+                this.translate.dragging = true;
+                this.translate.start.set(
+                    event.clientX - this.translate.offset.getX(), 
+                    event.clientY - this.translate.offset.getY()
+                );
+                this.canvas.style.cursor = 'grabbing';
+            }
+        });
+        this.events.add('mouseup', (event) => {
+            this.translate.dragging = false;
+            this.canvas.style.cursor = 'default';
+        });
+        this.events.add('mousemove', (event) => {
+            if (this.translate.dragging) {
+                this.translate.offset.set(
+                    event.clientX - this.translate.start.getX(),
+                    event.clientY - this.translate.start.getY() 
+                );
+            }
+        });
+
+        this.events.translate = this.translate;
 
         this.select = {
             visible: false,
@@ -1176,11 +1041,11 @@ class NodeEngine {
         };
 
         this.events.add('mousedown', (event) => {
-            let object = this.events.objects.find(({ object }) => object.collision(event.clientX, event.clientY));
-            if (object === undefined) {
+            let object = this.events.objects.find(({ object }) => object.collision(event.posX, event.posY));
+            if (object === undefined && event.button === 0) {
                 this.select.visible = true;
-                this.select.start.set(event.clientX, event.clientY);
-                this.select.end.set(event.clientX, event.clientY);
+                this.select.start.set(event.posX, event.posY);
+                this.select.end.set(event.posX, event.posY);
             }
         }, 0);
         this.events.add('mouseup', (event) => {
@@ -1190,16 +1055,9 @@ class NodeEngine {
         }, 0);
         this.events.add('mousemove', (event) => {
             if (this.select.visible) {
-                this.select.end.set(event.clientX, event.clientY);
+                this.select.end.set(event.posX, event.posY);
             }
         }, 0);
-
-        this.network.pushGate(new Point(300, 300), (args) => !args.reduce((a, b) => a || b), NOT_STYLE);
-        this.network.pushGate(new Point(100, 500), (args) => args.reduce((a, b) => a && b), AND_STYLE);
-        this.network.pushGate(new Point(300, 500), (args) => args.reduce((a, b) => a || b), OR_STYLE);
-        this.network.pushGate(new Point(500, 300), (args) => args.reduce((a, b) => a || b), OR_STYLE);
-        this.network.pushSwitch(new Point(100, 300));
-        this.network.pushSwitch(new Point(500, 500));
 
         this.evaluate = true;
         this.running  = false;
@@ -1212,9 +1070,18 @@ class NodeEngine {
     launch() {
         this.running = true;
 
+        this.lasttime = performance.now();
+
         const frame = (time) => {
+            // console.log(time - this.lasttime);
+            // this.lasttime = time;
+            // this.ctx.resetTransform();
+            this.ctx.resetTransform();
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
             
+            this.ctx.translate(this.translate.offset.getX(), this.translate.offset.getY());
+            // this.ctx.translate(-this.canvas.getBoundingClientRect().left, -this.canvas.getBoundingClientRect().top);
+
             this.network.tick(time);
             this.network.draw(this.ctx, time);
 
