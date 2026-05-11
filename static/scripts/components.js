@@ -8,43 +8,17 @@ class Gate extends Component {
         super(pos, Gate.DEFAULT_SIZE, style);
         this.expr = expr;
         
-        this.tick = undefined;
+        this.lasttick  = performance.now();
+        this.laststate = false;
     }
 
     // eval
     
     evaluate(args, time) {
         let state = args.length === 0 ? false : this.expr(args, time);
-        if (state) {
-            setTimeout(() => {
-                this.state = true;
-            }, Gate.TICK);
-            // this.tick = animate({
-            //     wait:     Gate.TICK,
-            //     duration: 2,
-            //     timing:   (time) => time,
-            //     callback: (time) => {  },
-                
-            //     post: () => {
-            //         this.state = true;
-            //         this.tick  = undefined;
-            //     }
-            // });
-        } else {
-            setTimeout(() => {
-                this.state = false;
-            }, Gate.TICK);
-            // this.tick = animate({
-            //     wait:     Gate.TICK,
-            //     duration: 2,
-            //     timing:   (time) => time,
-            //     callback: (time) => {  },
-                
-            //     post: () => {
-            //         this.state = false;
-            //         this.tick  = undefined;
-            //     }
-            // });
+        if (state !== this.laststate) {
+            setTimeout(() => this.state = state, Gate.TICK);
+            this.laststate = state;
         }
     }
 
@@ -60,8 +34,7 @@ class GateAnd extends Gate {
         super(pos, (args) => args.reduce((a, b) => a && b), {
             text: 'and',
             icon: (pos, color, ctx) => {
-                drawText({
-                    ctx:      ctx,
+                ctx.text({
                     pos:      pos,
                     text:     '&',
                     fontSize: '30px',
@@ -85,8 +58,7 @@ class GateOr extends Gate {
         super(pos, (args) => args.reduce((a, b) => a || b), {
             text: 'or',
             icon: (pos, color, ctx) => {
-                drawText({
-                    ctx:      ctx,
+                ctx.text({
                     pos:      pos,
                     text:     '|',
                     fontSize: '30px',
@@ -110,8 +82,7 @@ class GateNot extends Gate {
         super(pos, (args) => !args.reduce((a, b) => a || b), {
             text: 'not',
             icon: (pos, color, ctx) => {
-                drawText({
-                    ctx:      ctx,
+                ctx.text({
                     pos:      pos,
                     text:     '~',
                     fontSize: '30px',
@@ -242,7 +213,7 @@ function deserialize(data, network) {
     }
 
     network.clear();
-    network.addComponents([...components.values()]);
+    network.add(...components.values());
 
     for (const idEnd in data.connections) {
         for (const idStart of data.connections[idEnd]) {

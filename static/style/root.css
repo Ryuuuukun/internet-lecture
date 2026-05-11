@@ -1,0 +1,11 @@
+:root {
+    --color-100: #050505;
+    --color-150: #0B0B0B;
+    --color-200: #181818;   
+    --color-300: #232323;
+    --color-400: #ffffff;
+    --color-active: #386AD7; 
+
+    --tooltip-offset-y: 125%;
+    --tooltip-font: 'Roboto-flex', sanf-serif;
+}

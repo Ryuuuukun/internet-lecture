@@ -5,60 +5,40 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         
         <title>Document</title>
-        
 
-        <style>
-            :root {
-                --color-100: #050505;
-                --color-150: #0B0B0B;
-                --color-200: #181818;   
-                --color-300: #232323;
-                --color-400: #ffffff;
-                --color-active: #386AD7; 
-
-                --tooltip-offset-y: 125%;
-                --tooltip-font: 'Roboto-flex', sanf-serif;
-            }
-
-            body {
-                background: var(--color-100);
-                box-sizing: border-box;
-                padding: 0px;
-                margin: 0px;
-            }
-
-            .canvas {
-                position: absolute;
-                left: 50%;
-                top: 50%;
-                transform: translate(-50%, -50%);
-            }
-
-
-            .header {
-                outline: white solid 1px;
-            }
-        </style>
+        <link rel="stylesheet" href="static/style/fonts.css">
+        <link rel="stylesheet" href="static/style/root.css">
+        <link rel="stylesheet" href="static/style/index.css">
     </head>
     <body>
-        <canvas id="canvas" class="canvas" style="background: #050505;" width="750" height="650"></canvas>
+        <canvas id="canvas" class="canvas" width="750" height="650"></canvas>
 
+        <div id="welcome-header" class="welcome-header hidden">
+            <p class="welcome-header-title">GATE NODE</p>
+            <p class="welcome-header-desc">Редактор логических схем</p>
+        </div>
 
+        <a id="welcome-button" class="welcome-button hidden" href="editor.html">
+            <p>Перейти к редактору</p>
+        </a>
 
-        <script src="nodecore2.js"></script>
-        <script src="components2.js"></script>
+        <script src="static/scripts/nodecore.js"></script>
+        <script src="static/scripts/components.js"></script>
         <script>
             const canvas = document.getElementById("canvas");
             const ctx    = WrapContext(canvas.getContext("2d"));
 
             const engine = new NodeEngine(ctx, canvas);
             
-            const WelcomeBlueprint = '{"components":[{"id":"0","type":"gate:and","posX":1016,"posY":207},{"id":"1","type":"gate:or","posX":1016,"posY":277},{"id":"2","type":"gate:and","posX":1016,"posY":347},{"id":"3","type":"gate:or","posX":1016,"posY":417},{"id":"4","type":"gate:and","posX":1016,"posY":487},{"id":"5","type":"gate:or","posX":946,"posY":207},{"id":"6","type":"gate:and","posX":876,"posY":207},{"id":"7","type":"gate:or","posX":806,"posY":207},{"id":"8","type":"gate:and","posX":736,"posY":207},{"id":"9","type":"gate:or","posX":736,"posY":277},{"id":"10","type":"gate:and","posX":736,"posY":347},{"id":"11","type":"gate:or","posX":736,"posY":417},{"id":"12","type":"gate:and","posX":736,"posY":487},{"id":"13","type":"gate:or","posX":666,"posY":487},{"id":"14","type":"gate:and","posX":596,"posY":487},{"id":"15","type":"gate:or","posX":526,"posY":487},{"id":"16","type":"gate:not","posX":458,"posY":207},{"id":"17","type":"gate:or","posX":458,"posY":277},{"id":"18","type":"gate:and","posX":457,"posY":347},{"id":"19","type":"gate:or","posX":457,"posY":417},{"id":"20","type":"gate:and","posX":457,"posY":487}],"connections":{"0":["5"],"1":["0"],"2":["1"],"3":["2"],"4":["3"],"5":["6"],"6":["7"],"7":["8"],"8":["9"],"9":["10"],"10":["11"],"11":["12"],"12":["13"],"13":["14"],"14":["15"],"15":["20"],"16":["4"],"17":["16"],"18":["17"],"19":["18"],"20":["19"]}}';
+            const WelcomeBlueprint = '{"components":[{"id":"0","type":"gate:and","posX":507,"posY":243},{"id":"1","type":"gate:or","posX":742,"posY":337},{"id":"2","type":"gate:not","posX":900,"posY":479},{"id":"3","type":"gate:or","posX":339,"posY":380},{"id":"4","type":"gate:and","posX":343,"posY":580},{"id":"5","type":"gate:or","posX":530,"posY":755},{"id":"6","type":"gate:and","posX":726,"posY":614},{"id":"7","type":"gate:or","posX":1297,"posY":244},{"id":"8","type":"gate:and","posX":1061,"posY":338},{"id":"9","type":"gate:and","posX":1494,"posY":376},{"id":"10","type":"gate:or","posX":1498,"posY":571},{"id":"11","type":"gate:and","posX":1300,"posY":731},{"id":"12","type":"gate:or","posX":1083,"posY":614}],"connections":{"0":["3"],"1":["0"],"2":["1","12"],"3":["4"],"4":["5"],"5":["6"],"6":["2"],"7":["8"],"8":["2"],"9":["7"],"10":["9"],"11":["10"],"12":["11"]}}';
+            // const WelcomeBlueprint = '{"components":[{"id":"0","type":"gate:or","posX":1014,"posY":682},{"id":"1","type":"gate:and","posX":1257,"posY":595},{"id":"2","type":"lamp","posX":1717,"posY":721},{"id":"3","type":"lamp","posX":1653,"posY":334},{"id":"4","type":"gate:not","posX":1089,"posY":404},{"id":"5","type":"switch","posX":607,"posY":760},{"id":"6","type":"switch","posX":649,"posY":535},{"id":"7","type":"switch","posX":519,"posY":368},{"id":"8","type":"lamp","posX":1592,"posY":545}],"connections":{"0":["5","7"],"1":["6","4"],"2":["0","1"],"3":["1"],"4":["6","0"],"8":["4"]}}';
+            // const WelcomeBlueprint = '{"components":[{"id":"0","type":"gate:and","posX":1016,"posY":207},{"id":"1","type":"gate:or","posX":1016,"posY":277},{"id":"2","type":"gate:and","posX":1016,"posY":347},{"id":"3","type":"gate:or","posX":1016,"posY":417},{"id":"4","type":"gate:and","posX":1016,"posY":487},{"id":"5","type":"gate:or","posX":946,"posY":207},{"id":"6","type":"gate:and","posX":876,"posY":207},{"id":"7","type":"gate:or","posX":806,"posY":207},{"id":"8","type":"gate:and","posX":736,"posY":207},{"id":"9","type":"gate:or","posX":736,"posY":277},{"id":"10","type":"gate:and","posX":736,"posY":347},{"id":"11","type":"gate:or","posX":736,"posY":417},{"id":"12","type":"gate:and","posX":736,"posY":487},{"id":"13","type":"gate:or","posX":666,"posY":487},{"id":"14","type":"gate:and","posX":596,"posY":487},{"id":"15","type":"gate:or","posX":526,"posY":487},{"id":"16","type":"gate:not","posX":458,"posY":207},{"id":"17","type":"gate:or","posX":458,"posY":277},{"id":"18","type":"gate:and","posX":457,"posY":347},{"id":"19","type":"gate:or","posX":457,"posY":417},{"id":"20","type":"gate:and","posX":457,"posY":487}],"connections":{"0":["5"],"1":["0"],"2":["1"],"3":["2"],"4":["3"],"5":["6"],"6":["7"],"7":["8"],"8":["9"],"9":["10"],"10":["11"],"11":["12"],"12":["13"],"13":["14"],"14":["15"],"15":["20"],"16":["4"],"17":["16"],"18":["17"],"19":["18"],"20":["19"]}}';
             deserialize(JSON.parse(WelcomeBlueprint), engine.network);
             
-            engine.objectEvents.clicking    = false;
+            engine.objectEvents.clicking    = true;
             engine.objectEvents.selection   = false;
             engine.objectEvents.mousedownup = false;
+            engine.objectEvents.hovering    = true;
             engine.dragging = false;
 
             engine.network.appearance();
@@ -66,7 +46,7 @@
             engine.launch();  
             
             function resize() {
-                const dpr = window.devicePixelRatio || 1;
+                let dpr = window.devicePixelRatio || 1;
 
                 canvas.style.width  = window.innerWidth + 'px';
                 canvas.style.height = window.innerHeight + 'px';
@@ -74,12 +54,17 @@
                 canvas.width = window.innerWidth * dpr;
                 canvas.height = window.innerHeight * dpr;
 
-                ctx.scale(dpr, dpr);
+                engine.canvas.setScale(dpr, dpr);
                 engine.centerit();
             }
 
             window.addEventListener('resize', resize);
             resize();
+            
+            setTimeout(() => {
+                document.getElementById('welcome-header').classList.toggle('hidden');
+                document.getElementById('welcome-button').classList.toggle('hidden');
+            }, 600);
 
         </script>
     </body>

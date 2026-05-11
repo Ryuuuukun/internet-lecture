@@ -1,25 +1,25 @@
-// =========== math =========== 
+// --------------- math ---------------
 
 class Point {
     constructor(x, y) {
         this.x = x;
         this.y = y;
     }
-
+    
     set(x, y) {
         this.x = x;
         this.y = y;
     }
-
+    
     move(dx, dy) {
         this.x += dx;
         this.y += dy;
     }
-
+    
     getX() {
         return Math.floor(this.x);
     }
-
+    
     getY() {
         return Math.floor(this.y);
     }
@@ -31,49 +31,48 @@ class FollowPoint {
         this.dx = dx;
         this.dy = dy;
     }
-
+    
     getX() {
         return Math.floor(this.dx) + this.follow.getX();
     }
-
+    
     getY() {
         return Math.floor(this.dy) + this.follow.getY();
     }
 }
 
-
-
-// =========== animate =========== 
+// --------------- animate ---------------
 
 function animate({ wait, duration, timing, callback, pre, post }) {
     let quit  = false;
     let start = performance.now();
-
+    
     if (pre !== undefined) {
         pre();
     }
-
+    
     setTimeout(() => {
         requestAnimationFrame(function frame(time) {
             if (quit) {
                 return;
             }
+            
             let progress = (time - (start + wait)) / duration;
             if (progress > 1) {
                 progress = 1;
             }
-
+            
             callback(timing(progress));
             if (progress < 1) {
                 requestAnimationFrame(frame);
             } else {
-                if (post != undefined) {
+                if (post !== undefined) {
                     post();
                 }
             }
         });
-    }, wait);
-
+    }, wait || 0);
+    
     return {
         quit: () => quit = true
     }
@@ -94,188 +93,268 @@ function animateFrames({ frames, wait, duration, timing, pre, post }) {
         pre:  pre,
         post: post
     });
-} 
-
-const Times = {
-    linear: (time) => time,
-    ease:   (time) => time < 0.5 ? 2 * time * time : -1 + (4 - 2 * time) * time
-};
+}
 
 class NumberAnimate {
-    constructor(init, timing) {
-        this.value = init;
-        this.timing = timing || Times.linear;
-        
+    constructor(init) {
+        this.value  = init;
         this.holder = undefined;
     }
-
-    to({ value, wait, duration, pre, post }) {
+    
+    to({ value, wait, duration, timing, pre, post }) {
         if (this.holder !== undefined) {
             this.holder.quit();
         }
-
+        
         let start = this.value;
         let delta = value - this.value;
         this.holder = animate({
             wait:     wait || 0,
             duration: duration,
-            timing:   this.timing,
+            timing:   timing || Times.linear,
             callback: (time) => this.value = start + delta * time,
-            pre:  () => {
-                if (pre !== undefined) {
-                    pre();
-                }
-            },
+            pre: pre,
             post: () => {
-                this.holder = undefined
+                this.holder = undefined;
                 if (post !== undefined) {
                     post();
                 }
             }
         });
     }
-
+    
     stop() {
         if (this.holder !== undefined) {
             this.holder.quit();
         }
     }
-
+    
     set(value) {
         this.value = value;
     }
-
+    
     get() {
         return this.value;
     }
 }
 
-
-
-// =========== drawable =========== 
-
-function drawLine(ctx, x1, y1, x2, y2) {
-    ctx.beginPath();       
-    ctx.moveTo(x1, y1);      
-    ctx.lineTo(x2, y2);  
-    ctx.stroke();
+const Times = {
+    linear: (time) => time,
+    ease:   (time) => time < 0.5 ? 2 * time * time : -1 + (4 - 2 * time) * time,
+    smooth: (time) => 0.5 * Math.cos(Math.PI * (time - 1)) + 0.5
 }
 
-function drawCircle(ctx, x, y, radius, color) {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(x, y, Math.abs(radius), 0, 2 * Math.PI);
-    ctx.fill();
-}
+// --------------- wrapping ---------------
 
-function drawText({ ctx, pos, text, fontSize, color }) {
-    ctx.font = `${fontSize} 'JetBrains Mono'`;
-    ctx.fillStyle    = color;
-    ctx.textAlign    = 'center'; 
-    ctx.textBaseline = 'middle'; 
-    ctx.fillText(text, pos.getX(), pos.getY());
-}
-
-function drawEmptyBlock({ ctx, pos, size, lineWidth, color }) {
-    ctx.lineWidth = lineWidth;
-    ctx.strokeStyle = color;
-    ctx.strokeRect(pos.getX() - size / 2, pos.getY() - size / 2, size, size);
-    drawLine(ctx, pos.getX() - size / 2, pos.getY() - size / 2, pos.getX() + size / 2, pos.getY() + size / 2);
-    drawLine(ctx, pos.getX() - size / 2, pos.getY() + size / 2, pos.getX() + size / 2, pos.getY() - size / 2);
-}
-
-function drawLinesBlock({ ctx, pos, size, lineWidth, lineCount, color }) {
-    ctx.lineWidth   = lineWidth;
-    ctx.strokeStyle = color;
-    for (let i = 0; i < lineCount; ++i) {
-        drawLine(ctx,
-            pos.getX() - size / 2,
-            pos.getY() - size / 2 + i * (size / lineCount),
-            pos.getX() - size / 2 + i * (size / lineCount),
-            pos.getY() - size / 2
-        );
+function WrapContext(ctx) {
+    ctx.line = function(x1, y1, x2, y2) {
+        this.beginPath();
+        ctx.moveTo(Math.floor(x1), Math.floor(y1));
+        ctx.lineTo(Math.floor(x2), Math.floor(y2));
+        this.stroke();
+    };
+    ctx.circle = function(x, y, radius) {
+        this.beginPath();
+        this.arc(x, y, Math.abs(radius), 0, 2 * Math.PI);
+        this.fill();
+    };
+    ctx.text = function({ pos, text, fontSize, color }) {
+        this.font         = `${fontSize} 'JetBrains Mono'`;
+        this.fillStyle    = color;
+        this.textAlign    = 'center'; 
+        this.textBaseline = 'middle'; 
+        this.fillText(text, pos.getX(), pos.getY());
+    };
+    ctx.infcanvas = function({ startX, startY, width, height, spacing, radius, color }) {
+        for (let x = startX; x < width; x += spacing) {
+            for (let y = startY; y < height; y += spacing) {
+                ctx.fillStyle = color;
+                ctx.circle(x, y, radius);
+            }
+        }
+    };
+    ctx.emptyblock = function({ pos, size, lineWidth, color }) {
+        this.lineWidth   = lineWidth;
+        this.strokeStyle = color;
+        this.strokeRect(pos.getX() - size / 2, pos.getY() - size / 2, size, size);
+        this.line(pos.getX() - size / 2, pos.getY() - size / 2, pos.getX() + size / 2, pos.getY() + size / 2);
+        this.line(pos.getX() - size / 2, pos.getY() + size / 2, pos.getX() + size / 2, pos.getY() - size / 2)
     }
-    for (let i = 0; i < lineCount; ++i) {
-        drawLine(ctx,
-            pos.getX() - size / 2 + i * (size / lineCount),
-            pos.getY() + size / 2,
-            pos.getX() + size / 2,
-            pos.getY() - size / 2 + i * (size / lineCount) 
-        ); 
+    ctx.linesblock = function({ pos, size, lineWidth, lineCount, color }) {
+        this.lineWidth   = lineWidth;
+        this.strokeStyle = color;
+
+        this.beginPath();
+        for (let i = 0; i < lineCount; ++i) {
+            ctx.moveTo(pos.getX() - size / 2, pos.getY() - size / 2 + i * (size / lineCount));
+            ctx.lineTo(pos.getX() - size / 2 + i * (size / lineCount), pos.getY() - size / 2);
+        }
+        for (let i = 0; i < lineCount; ++i) {
+            ctx.moveTo(pos.getX() - size / 2 + i * (size / lineCount), pos.getY() + size / 2);
+            ctx.lineTo(pos.getX() + size / 2, pos.getY() - size / 2 + i * (size / lineCount));
+        }
+        this.stroke();
+    };
+    ctx.fillblock = function({ pos, size, icon, color }) {
+        this.fillStyle = color;
+        this.fillRect(pos.getX() - size / 2, pos.getY() - size / 2, size, size);
+        if (icon !== undefined) {
+            icon(this);
+        }
+    };
+    ctx.offcomponent = function({ pos, size, lineWidth, icon, colors }) {
+        this.fillStyle = colors.color100;
+        this.fillRect(pos.getX() - size / 2, pos.getY() - size / 2, size, size);
+        
+        this.lineWidth   = lineWidth;
+        this.strokeStyle = colors.color200;
+        this.strokeRect(pos.getX() - size / 2, pos.getY() - size / 2, size, size);
+        
+        this.fillStyle = colors.color300;
+        this.circle(pos.getX() - size / 2, pos.getY() - size / 2, 4);
+        this.circle(pos.getX() - size / 2, pos.getY() + size / 2, 4);
+        this.circle(pos.getX() + size / 2, pos.getY() - size / 2, 4);
+        this.circle(pos.getX() + size / 2, pos.getY() + size / 2, 4);
+        if (icon !== undefined) {
+            icon(this);
+        }
+    };
+    ctx.oncomponent = function({ pos, size, lineWidth, lineCount, icon, colors }) {
+        this.shadowColor = `${colors.color300}${Math.floor(255 * 0.20).toString(16)}`; 
+        this.shadowBlur  = 50;     
+        
+        this.fillStyle = colors.color100;
+        this.fillRect(pos.getX() - size / 2, pos.getY() - size / 2, size, size);
+        
+        this.linesblock({ pos: pos, size: size, lineWidth: lineWidth, lineCount: lineCount, color: colors.color200 });
+        
+        this.lineWidth   = lineWidth;
+        this.strokeStyle = colors.color200;
+        this.strokeRect(pos.getX() - size / 2, pos.getY() - size / 2, size, size);
+        if (icon !== undefined) {
+            icon(this);
+        }
+        
+        this.shadowBlur = 0;
+    }
+    
+    return ctx;
+}
+
+function WrapCanvas(canvas) {
+    canvas.transform = {
+        dragging: false,
+        start:  new Point(0, 0),
+        offset: new Point(0, 0),
+        scale:  1,
+        zoom:   new ValueProxy(1)
+    };
+    canvas.getMarginX = function() {
+        return this.getBoundingClientRect().left;
+    };
+    canvas.getMarginY = function() {
+        return this.getBoundingClientRect().top;
+    };
+    canvas.getOffsetX = function() {
+        return this.transform.offset.getX();
+    };
+    canvas.getOffsetY = function() {
+        return this.transform.offset.getY();
+    };
+
+    canvas.setScale = function(value) {
+        this.transform.scale = value;
+    };
+    canvas.getScale = function() {
+        return this.transform.scale;
+    };
+    
+    canvas.getZoomValue = function() {
+        return this.transform.zoom.get();
+    };
+    canvas.setZoomValue = function(value) {
+        this.transform.zoom.set(value);
+    };
+    canvas.getZoom = function() {
+        return this.transform.zoom;
+    };
+
+    canvas.getGlobalScale = function() {
+        return this.getZoomValue() * this.getScale();
+    }
+
+
+    return canvas;
+}
+
+// --------------- utility ---------------
+
+class ValueProxy {
+    constructor(value) {
+        this.value = value;
+        this.listeners = new Set();
+    }
+
+    add(listener) {
+        this.listeners.add(listener);
+    }
+
+    delete(listener) {
+        this.listeners.delete(listener);
+    }
+
+    set(value) {
+        if (this.value !== value) {
+            this.listeners.forEach((listener) => listener(value, this.value));
+            this.value = value;
+        }
+    }
+
+    get(value) {
+        return this.value;
     }
 }
 
-function drawFillBlock({ ctx, pos, size, icon, color }) {
-    ctx.fillStyle = color;
-    ctx.fillRect(pos.getX() - size / 2, pos.getY() - size / 2, size, size);
-    icon(ctx);
-}
 
-function drawOffComponent({ ctx, pos, size, lineWidth, icon, colors }) {      
-    ctx.fillStyle = colors.color100;
-    ctx.fillRect(pos.getX() - size / 2, pos.getY() - size / 2, size, size);
-    ctx.lineWidth = lineWidth;
-    ctx.strokeStyle = colors.color200;
-    ctx.strokeRect(pos.getX() - size / 2, pos.getY() - size / 2, size, size);
-    ctx.fillStyle = colors.color300;
-    drawCircle(ctx, pos.getX() - size / 2, pos.getY() - size / 2, 4);
-    drawCircle(ctx, pos.getX() - size / 2, pos.getY() + size / 2, 4);
-    drawCircle(ctx, pos.getX() + size / 2, pos.getY() - size / 2, 4);
-    drawCircle(ctx, pos.getX() + size / 2, pos.getY() + size / 2, 4);
-    icon(ctx);
-}
-
-function drawOnComponent({ ctx, pos, size, lineWidth, lineCount, icon, colors }) {
-    ctx.shadowColor = `${colors.color300}${Math.floor(255 * 0.20).toString(16)}`; 
-    ctx.shadowBlur  = 50;     
-
-    ctx.fillStyle = colors.color100;
-    ctx.fillRect(pos.getX() - size / 2, pos.getY() - size / 2, size, size);
-    drawLinesBlock({ ctx: ctx, pos: pos, size: size, lineWidth: lineWidth, lineCount: lineCount, color: colors.color200 });
-    ctx.lineWidth = lineWidth;
-    ctx.strokeStyle = colors.color200;
-    ctx.strokeRect(pos.getX() - size / 2, pos.getY() - size / 2, size, size);
-    icon(ctx);
-
-    ctx.shadowBlur = 0;
-}
-
-
-
-// =========== events =========== 
+// --------------- events ---------------
 
 class Events {
-    constructor(ctx, canvas) {
-        this.objects = [ ];
+    constructor(canvas) {
+        this.mousemoveListeners = [];
+        this.mousedownListeners = [];
+        this.mouseupListeners   = [];
+        this.keydownListeners   = [];
 
-        this.ctx = ctx;
-        this.canvas = canvas;
-
-        this.mousemoveListeners = [ ];
-        this.mousedownListeners = [ ];
-        this.mouseupListeners   = [ ];
-        this.keydownListeners   = [ ];
-
-        document.addEventListener('keydown', (event) => {
-            this.keydownListeners.forEach(({ listener }) => listener(event));
-        });
         document.addEventListener('mousemove', (event) => {
-            event.posX = event.clientX - this.translate.offset.getX() - canvas.getBoundingClientRect().left;
-            event.posY = event.clientY - this.translate.offset.getY() - canvas.getBoundingClientRect().top;
-            // event.posX = event.clientX - this.translate.offset.getX();
-            // event.posY = event.clientY - this.translate.offset.getY();
-            this.mousemoveListeners.forEach(({ listener }) => listener(event));
+            this.mousemoveListeners.forEach(({ listener }) => listener(event, canvas));
         });
         document.addEventListener('mousedown', (event) => {
-            event.posX = event.clientX - this.translate.offset.getX() - canvas.getBoundingClientRect().left;
-            event.posY = event.clientY - this.translate.offset.getY() - canvas.getBoundingClientRect().top;
-            this.mousedownListeners.forEach(({ listener }) => listener(event));
+            this.mousedownListeners.forEach(({ listener }) => listener(event, canvas));
         });
         document.addEventListener('mouseup', (event) => {
-            event.posX = event.clientX - this.translate.offset.getX() - canvas.getBoundingClientRect().left;
-            event.posY = event.clientY - this.translate.offset.getY() - canvas.getBoundingClientRect().top;
-            this.mouseupListeners.forEach(({ listener }) => listener(event));
+            this.mouseupListeners.forEach(({ listener }) => listener(event, canvas));
         });
+        document.addEventListener('keydown', (event) => {
+            this.keydownListeners.forEach(({ listener }) => listener(event, canvas));
+        });
+    }
+
+    add(event, listener, priority) {
+        let id = crypto.randomUUID();
+        this[event + 'Listeners'].push({ id: id, listener: listener, priority: priority });
+        this[event + 'Listeners'] = this[event + 'Listeners'].sort((a, b) => a.priority - b.priority);
+        
+        return id;
+    }
+
+    delete(id) {
+        this[event + 'Listeners'] = this[event + 'Listeners'].filter((listener) => listener.id !== id);
+    }
+}
+
+class ObjectEvents {
+    constructor(events) {
+        this.objects = new Map();
 
         // select
 
@@ -285,15 +364,17 @@ class Events {
         this.pressed  = false;
         this.lastMouseMove = undefined;
 
-        this.add('mousedown', (event) => {
+        events.add('mousedown', (event, canvas) => {
             if (document.elementFromPoint(event.clientX, event.clientY) !== canvas || !this.selection || event.button !== 0) {
                 return;
             }
 
             this.pressed = true;
 
-            let select = this.objects.filter(({ object }) => object.collision(event.posX, event.posY))
-                                .sort((a, b) => b.index - a.index)[0];
+            let x = event.clientX - canvas.getMarginX() - canvas.getOffsetX();
+            let y = event.clientY - canvas.getMarginY() - canvas.getOffsetY();
+
+            let select = [...this.objects.values()].filter(({ object }) => object.collision(x, y, canvas.getGlobalScale())).sort((a, b) => b.index - a.index)[0];
             if (select !== undefined) {
                 if (!event.shiftKey && !this.selected.has(select.object)) {
                     this.clearSelected();
@@ -310,9 +391,9 @@ class Events {
                 }
 
                 if (select.object.selected) {
-                    Events.invoke(select.object, 'selecton', event);
+                    ObjectEvents.invoke(select.object, 'selecton', event, canvas);
                 } else {
-                    Events.invoke(select.object, 'selectoff', event);
+                    ObjectEvents.invoke(select.object, 'selectoff', event, canvas);
                 }
             } else {
                 if (!event.shiftKey) {
@@ -320,28 +401,31 @@ class Events {
                 }
             }
         }, 1);
-        this.add('mouseup', (event) => {
+        events.add('mouseup', (event, canvas) => {
             this.pressed = false;
-            this.selected.forEach(object => {
+            this.selected.forEach((object) => {
                 if (object.moving) {
-                    Events.invoke(object, 'moveoff', event);
+                    ObjectEvents.invoke(object, 'moveoff', event, canvas);
                 }
                 object.moving = false;
             });
         }, 1);
-        this.add('mousemove', (event) => {
+        events.add('mousemove', (event, canvas) => {
             if (this.lastMouseMove === undefined) {
                 this.lastMouseMove = new Point(event.clientX, event.clientY);
             }
 
             if (this.pressed) {
+                let dx = (event.clientX - this.lastMouseMove.getX()) / canvas.getGlobalScale();
+                let dy = (event.clientY - this.lastMouseMove.getY()) / canvas.getGlobalScale();
+
                 this.selected.forEach(object => {
                     if (!object.moving) {
-                        Events.invoke(object, 'moveon', event);
+                        ObjectEvents.invoke(object, 'moveon', event, canvas);
                     }
 
                     object.moving = true;
-                    Events.invoke(object, 'move', event.clientX - this.lastMouseMove.getX(), event.clientY - this.lastMouseMove.getY(), event);
+                    ObjectEvents.invoke(object, 'move', dx, dy, event, canvas);
                 });
             }
 
@@ -349,40 +433,45 @@ class Events {
         }, 1);
 
         // click
-        
+
         this.clicking = true;
 
-        this.add('mouseup', (event) => {
-            if (document.elementFromPoint(event.posX, event.posY) !== this.canvas || !this.clicking) {
+        events.add('mouseup', (event, canvas) => {
+            if (document.elementFromPoint(event.clientX, event.clientY) !== canvas || !this.clicking || event.button !== 0) {
                 return;
             }
 
             if (!event.shiftKey) {
-                let click = this.objects.filter(({ object }) => object.collision(event.posX, event.posY))
-                                    .sort((a, b) => b.index - a.index)[0];
+                let x = event.clientX - canvas.getMarginX() - canvas.getOffsetX();
+                let y = event.clientY - canvas.getMarginX() - canvas.getOffsetY();
+
+                let click = [...this.objects.values()].filter(({ object }) => object.collision(x, y, canvas.getGlobalScale())).sort((a, b) => b.index - a.index)[0];
                 if (click !== undefined && !click.object.moving) {
-                    Events.invoke(click.object, 'click', event);
+                    ObjectEvents.invoke(click.object, 'click', event, canvas);
                 }
             }
         }, 0);
-
-        // hover 
+        
+        // hover
 
         this.hovering = true;
 
-        this.add('mousemove', (event) => {
+        events.add('mousemove', (event, canvas) => {
             if (this.hovering) {
-                this.objects.forEach(({ object, index }) => {
-                    let inside = object.collision(event.posX, event.posY);
+                let x = event.clientX - canvas.getMarginX() - canvas.getOffsetX();
+                let y = event.clientY - canvas.getMarginY() - canvas.getOffsetY();
+
+                this.objects.values().forEach(({ object, index }) => {
+                    let inside = object.collision(x, y, canvas.getGlobalScale());
                     if (object.hovered === undefined) {
                         object.hovered = false;
                     }
                     if (inside !== object.hovered) {
                         object.hovered = inside;
                         if (inside) {
-                            Events.invoke(object, 'hoveron', event);
+                            ObjectEvents.invoke(object, 'hoveron', event, canvas);
                         } else {
-                            Events.invoke(object, 'hoveroff', event);
+                            ObjectEvents.invoke(object, 'hoveroff', event, canvas);
                         }
                     }
                 });
@@ -393,27 +482,32 @@ class Events {
 
         this.mousedownup = true;
 
-        this.add('mousedown', (event) => {
-            if (document.elementFromPoint(event.posX, event.posY) !== this.canvas || !this.mousedownup) {
+        events.add('mousedown', (event, canvas) => {
+            if (document.elementFromPoint(event.clientX, event.clientY) !== canvas || !this.mousedownup || event.button !== 0) {
                 return;
             }
 
-            this.objects.forEach(({ object, index }) => {
-                if (object.collision(event.posX, event.posY)) {
-                    Events.invoke(object, 'mousedown', event);
+            let x = event.clientX - canvas.getMarginX() - canvas.getOffsetX();
+            let y = event.clientY - canvas.getMarginY() - canvas.getOffsetY();
+
+            this.objects.values().forEach(({ object, index }) => {
+                if (object.collision(x, y, canvas.getGlobalScale())) {
+                    ObjectEvents.invoke(object, 'mousedown', event, canvas);
                     object.pressed = true;
                 }
             });
         }, 0);
-        this.add('mouseup', (event) => {
-            this.objects.forEach(({ object, index }) => {
+        events.add('mouseup', (event, canvas) => {
+            this.objects.values().forEach(({ object, index }) => {
                 if (object.pressed) {
-                    Events.invoke(object, 'mouseup', event);
+                    ObjectEvents.invoke(object, 'mouseup', event, canvas);
                     object.pressed = false;
                 }
             });
         }, 0);
     }
+
+    // utility
 
     static invoke(object, method, ...args) {
         if (object[method] !== undefined) {
@@ -421,27 +515,22 @@ class Events {
         }
     }
 
-    add(event, listener, priority) {
-        this[event + 'Listeners'].push({ listener: listener, priority: priority });
-        this[event + 'Listeners'] = this[event + 'Listeners'].sort((a, b) => a.priority - b.priority);
-    }
+    // operation
 
-    notice(object, index) {
-        this.objects.push({ object: object, index: index });
-    }
-
-    deleteObject(obj) {
-        this.objects = this.objects.filter(({ object }) => object !== obj);
-    }
-
-    deleteObjects(objects) {
-        let result = [ ];
-        objects.forEach(obj => {
-            if (this.objects.find(e => e === obj) === undefined) {
-                result.push(result);
+    add(...args) {
+        args.forEach((arg) => {
+            if (arg !== undefined) {
+                this.objects.set(arg.object.id, { object: arg.object, index: arg.index });
             }
         });
-        this.objects = result;
+    }
+
+    delete(...args) {
+        args.forEach((arg) => {
+            if (arg !== undefined) {
+                this.objects.delete(arg.id);
+            }
+        });
     }
 
     // other
@@ -452,8 +541,7 @@ class Events {
     }
 }
 
-
-// =========== network =========== 
+// --------------- network ---------------
 
 class Component {
     constructor(pos, size, style) {
@@ -461,20 +549,21 @@ class Component {
         this.pos   = pos;
         this.size  = size;
         this.style = style;
-        
+
         this.state = false;
-        
+
         this.input  = new Socket(this, 'input');
         this.output = new Socket(this, 'output');
 
-        this.animate = false;
-        this.hover   = {
+        this.animate = {
             visible: false,
-            size:    new NumberAnimate(0, (time) => time)
+            opacity: new NumberAnimate(0),
+            frame:   () => { }
         };
-
-        this.opacity = new NumberAnimate(0, Times.linear);
-        this.frame   = () => { };
+        this.hover = {
+            visible: false,
+            size:    new NumberAnimate(0)
+        };
     }
 
     // evaluate
@@ -494,30 +583,30 @@ class Component {
     }
 
     click(event) {
-        
+
     }
 
     hoveron(event) {
         this.hover.size.to({
             value:    4,
             duration: 200,
-            pre:      () => this.hover.visible = true
+            pre: () => this.hover.visible = true
         });
     }
-
+    
     hoveroff(event) {
         this.hover.size.to({
             value:    0,
             duration: 200,
-            post:     () => this.hover.visible = false
-        })
+            post: () => this.hover.visible = false
+        });
     }
 
     // predicate
 
-    collision(x, y) {
-        return Math.abs(x - this.pos.getX()) <= this.size / 2 &&
-                Math.abs(y - this.pos.getY()) <= this.size / 2;
+    collision(x, y, zoom) {
+        return Math.abs(x - this.pos.getX() * zoom) <= this.size * zoom / 2 &&
+                Math.abs(y - this.pos.getY() * zoom) <= this.size * zoom / 2;
     }
 
     // draw
@@ -530,7 +619,7 @@ class Component {
         if (this.selected) {
             this.drawSelect(ctx, time);
         }
-        if (!this.animate) {
+        if (!this.animate.visible) {
             if (this.input !== undefined) {
                 this.input.draw(ctx, time);
             }
@@ -541,113 +630,108 @@ class Component {
     }
 
     drawDefault(ctx, time) {
-        if (!this.animate) {
+        if (!this.animate.visible) {
             if (this.state) {
-                drawOnComponent({
-                    ctx:       ctx, 
-                    pos:       this.pos,
-                    size:      this.size,
+                ctx.oncomponent({
+                    pos:  this.pos,
+                    size: this.size,
                     lineWidth: 2,
                     lineCount: 10,
                     colors:    this.style.enable,
                     icon:      (ctx) => this.style.icon(this.pos, '#ffffff', ctx)
                 });
             } else {
-                drawOffComponent({
-                    ctx:       ctx,
-                    pos:       this.pos,
-                    size:      this.size,
+                ctx.offcomponent({
+                    pos:  this.pos,
+                    size: this.size,
                     lineWidth: 2,
                     colors:    this.style.disable,
                     icon:      (ctx) => this.style.icon(this.pos, '#ffffff', ctx)
                 });
             }
 
-            drawText({
-                ctx:      ctx,
+            ctx.text({
                 pos:      new Point(this.pos.getX(), this.pos.getY() + this.size / 2 + 15),
                 text:     this.style.text,
                 fontSize: '16px',
                 color:    'rgba(255, 255, 255, 0.25)'
             });
         } else {
-            ctx.globalAlpha = this.opacity.get();
-            this.frame(ctx);
+            ctx.globalAlpha = this.animate.opacity.get();
+            this.animate.frame(ctx, time);
             ctx.globalAlpha = 1;
         }
-
-        
     }
 
     drawSelect(ctx, time) {
-        drawCircle(ctx, this.pos.getX() - this.size / 2, this.pos.getY() - this.size / 2, 6, '#386AD7');
-        drawCircle(ctx, this.pos.getX() - this.size / 2, this.pos.getY() + this.size / 2, 6, '#386AD7');
-        drawCircle(ctx, this.pos.getX() + this.size / 2, this.pos.getY() - this.size / 2, 6, '#386AD7');
-        drawCircle(ctx, this.pos.getX() + this.size / 2, this.pos.getY() + this.size / 2, 6, '#386AD7');
-
+        ctx.fillStyle = '#386AD7';
+        ctx.circle(this.pos.getX() - this.size / 2, this.pos.getY() - this.size / 2, 6);
+        ctx.circle(this.pos.getX() - this.size / 2, this.pos.getY() + this.size / 2, 6);
+        ctx.circle(this.pos.getX() + this.size / 2, this.pos.getY() - this.size / 2, 6);
+        ctx.circle(this.pos.getX() + this.size / 2, this.pos.getY() + this.size / 2, 6);
+        
         ctx.strokeStyle = '#386AD7';
         ctx.strokeRect(this.pos.getX() - this.size / 2, this.pos.getY() - this.size / 2, this.size, this.size);
     }
 
     drawHover(ctx, time) {
-        drawCircle(ctx, this.pos.getX() - this.size / 2, this.pos.getY() - this.size / 2, this.hover.size.get(), '#386AD7');
-        drawCircle(ctx, this.pos.getX() - this.size / 2, this.pos.getY() + this.size / 2, this.hover.size.get(), '#386AD7');
-        drawCircle(ctx, this.pos.getX() + this.size / 2, this.pos.getY() - this.size / 2, this.hover.size.get(), '#386AD7');
-        drawCircle(ctx, this.pos.getX() + this.size / 2, this.pos.getY() + this.size / 2, this.hover.size.get(), '#386AD7');
+        ctx.fillStyle = '#386AD7';
+        ctx.circle(this.pos.getX() - this.size / 2, this.pos.getY() - this.size / 2, this.hover.size.get());
+        ctx.circle(this.pos.getX() - this.size / 2, this.pos.getY() + this.size / 2, this.hover.size.get());
+        ctx.circle(this.pos.getX() + this.size / 2, this.pos.getY() - this.size / 2, this.hover.size.get());
+        ctx.circle(this.pos.getX() + this.size / 2, this.pos.getY() + this.size / 2, this.hover.size.get());
     }
 
     // animate
 
     appearance({ wait, duration }) {
-        this.opacity.set(0);
-        this.opacity.to({
+        this.animate.opacity.set(0);
+        this.animate.opacity.to({
             value:    1,
-            duration: 500
+            duration: 600
         });
         animateFrames({
             wait:     wait || 0,
-            duration: duration || 400,
+            duration: duration || 500,
             timing:   Times.linear,
             frames: [
-                () => this.frame = (ctx) => drawEmptyBlock({
-                        ctx:  ctx,
-                        pos:  this.pos,
-                        size: this.size,
+                () => this.animate.frame = (ctx) => ctx.emptyblock({
+                        pos:   this.pos,
+                        size:  this.size,
                         color: this.style.disable.color200
                     }),
-                () => this.frame = (ctx) => drawLinesBlock({
-                        ctx:  ctx,
+                () => this.animate.frame = (ctx) => ctx.linesblock({
                         pos:  this.pos,
                         size: this.size,
                         lineWidth: 2,
                         lineCount: 10,
                         color: this.style.disable.color200
                     }),
-                () => this.frame = (ctx) => drawFillBlock({
-                        ctx:  ctx,
+                () => this.animate.frame = (ctx) => ctx.fillblock({
                         pos:  this.pos,
                         size: this.size,
                         color: this.style.disable.color200,
                         icon: () => this.style.icon(this.pos, '#050505', ctx)
                     })
             ],
-            pre:  () => {
-                this.animate = true;
-                this.frame   = () => { };
+            pre: () => {
+                this.animate.visible = true;
+                this.frame = () => { };
             },
-            post: () => this.animate = false
+            post: () => this.animate.visible = false
         });
     }
 }
 
 class Socket {
     static DEFAULT_SIZE = 12;
-    static HOVER_SIZE   = 18; 
-
+    static HOVER_SIZE   = 18;
+    
     constructor(component, type) {
         this.pos  = new FollowPoint(component.pos, (type === 'input' ? -1 : 1) * component.size / 2, 0);
-        this.size = new NumberAnimate(Socket.DEFAULT_SIZE, (time) => time);
-
+        this.size = new NumberAnimate(Socket.DEFAULT_SIZE);
+        
+        this.id = crypto.randomUUID();
         this.component = component;
         this.type      = type;
     }
@@ -656,14 +740,14 @@ class Socket {
 
     hoveron(event) {
         this.size.to({
-            value:    Socket.HOVER_SIZE,
+            value: Socket.HOVER_SIZE,
             duration: 200
         });
     }
 
     hoveroff(event) {
         this.size.to({
-            value:    Socket.DEFAULT_SIZE,
+            value: Socket.DEFAULT_SIZE,
             duration: 200
         });
     }
@@ -674,16 +758,16 @@ class Socket {
         let dx = x - this.pos.getX();
         let dy = y - this.pos.getY();
 
-        return dx * dx + dy * dy <= this.size.get() * this.size.get(); 
+        return dx * dx + dy * dy < this.size.get() * this.size.get();
     }
 
     // draw
 
     draw(ctx, time) {
-        let color = this.component.state ? 
+        ctx.fillStyle = this.component.state ? 
             this.component.style.enable.color300 :
             this.component.style.disable.color300;
-        drawCircle(ctx, this.pos.getX(), this.pos.getY(), this.size.get() / 2, color);
+        ctx.circle(this.pos.getX(), this.pos.getY(), this.size.get() / 2);
     }
 }
 
@@ -699,22 +783,8 @@ class Pipe {
         this.route   = [ ];
         this.animate = {
             visible: false,
-            value:   new NumberAnimate(0, Times.linear)
+            value:   new NumberAnimate(0)
         };
-    }
-
-    // predicate
-
-    collision(x, y) {
-        let max = new Point(-Infinity, -Infinity);
-        let min = new Point(Infinity, Infinity);
-        for (const point of this.route) {
-            max.set(Math.max(max.getX(), point.getX()), Math.max(max.getY(), point.getY()));
-            min.set(Math.min(min.getX(), point.getX()), Math.min(min.getY(), point.getY()));
-        }
-
-        return min.getX() < x + 15 && x - 15 < max.getX() &&
-                min.getY() < y + 15 && y - 15 < max.getY();
     }
 
     // draw
@@ -798,12 +868,14 @@ class Pipe {
 
         let color = this.state ? this.compstart.style.enable.color200 : '#444444';
         for (let i = 1; i <= length; ++i) {
-            drawCircle(ctx, this.route[i].getX(), this.route[i].getY(), 6, color);
-            drawCircle(ctx, this.route[i].getX(), this.route[i].getY(), 4, '#050505');
+            ctx.fillStyle = color;
+            ctx.circle(this.route[i].getX(), this.route[i].getY(), 6);
+            ctx.fillStyle = '#050505';
+            ctx.circle(this.route[i].getX(), this.route[i].getY(), 4);
         }
     }
 
-    // animate 
+    // animate
 
     appearance({ wait, duration }) {
         this.animate.value.set(0);
@@ -818,25 +890,23 @@ class Pipe {
 }
 
 class Network {
-    static TICK = 100;
+    constructor(events, objectEvents) {
+        this.events = events;
+        this.objectEvents = objectEvents;
 
-    constructor(events) {
-        this.components = [ ];
-        this.pipes      = [ ];
-        this.sockets    = [ ];
+        this.components = [];
+        this.pipes      = [];
+        this.sockets    = [];
 
         this.connections = new Map();
 
         this.pipe  = undefined;
         this.start = undefined;
 
-        this.lastTick = performance.now();
-
-        this.events = events;
-        events.add('mousemove', (event) => {
-            if (this.pipe !== undefined) { 
-                let x = event.posX;
-                let y = event.posY;
+        events.add('mousemove', (event, canvas) => {
+            if (this.pipe !== undefined) {
+                let x = event.clientX - canvas.getMarginX() - canvas.getOffsetX();
+                let y = event.clientY - canvas.getMarginY() - canvas.getOffsetY();
 
                 if (this.pipe.end instanceof FollowPoint) {
                     this.pipe.start.set(x, y);
@@ -863,77 +933,46 @@ class Network {
 
             return component;
         };
+
         this.components.filter(e => e instanceof Lamp).forEach(lamp => next(lamp));
         this.components.filter(e => e instanceof Gate).forEach(gate => next(gate));
     }
 
     // operation
 
-    addComponent(component) {
-        this.components.push(component);
-        this.events.notice(component, 0);
+    add(...args) {
+        args.forEach((component) => {
+            this.components.push(component);
+            this.objectEvents.add({ object: component, index: 0 });
 
-        if (component.input !== undefined) {
-            this.sockets.push(component.input);
-            this.setSocketEvent(component.input);
-            this.events.notice(component.input, 1);
-        }
-        if (component.output !== undefined) {
-            this.sockets.push(component.output);
-            this.setSocketEvent(component.output);
-            this.events.notice(component.output, 1);
-        }
+            if (component.input !== undefined) {
+                this.objectEvents.add({ object: component.input, index: 1 });
+                this.setSocketEvent(component.input);
+                this.sockets.push(component.input);
+            }
+            if (component.output !== undefined) {
+                this.objectEvents.add({ object: component.output, index: 1 });
+                this.setSocketEvent(component.output);
+                this.sockets.push(component.output);
+            }
+        });
     }
 
-    addComponents(components) {
-        components.forEach(component => this.addComponent(component));
-    }
+    delete(...args) {
+        args.forEach((component) => {
+            this.components = this.components.filter(element => element !== component);
+            this.sockets = this.sockets.filter(element => element.component !== component);
+            this.pipes = this.pipes.filter(element => element.compstart !== component && element.compend !== component);
 
-    deleteComponent(component) {
-        this.components = this.components.filter(element => element !== component);
-        this.sockets = this.sockets.filter(element => element.component !== component);
-        this.pipes = this.pipes.filter(element => element.compstart !== component && element.compend !== component);
-
-        this.connections.delete(component);
-        for (const [key, value] of this.connections) {
-            value.delete(component);
-        }
-
-        this.events.deleteObject(component);
-        this.events.deleteObject(component.input);
-        this.events.deleteObject(component.output);
-    }
-
-    deleteComponents(components) {
-        components.forEach(component => this.deleteComponent(component));
-    }
-
-    clear() {
-        this.deleteComponents([...this.components]);    
-    }
-
-    // pipeline
-    
-    setSocketEvent(socket) {
-        socket.mousedown = (event) => {
-            this.pipe = socket.type === 'input' ?
-                                new Pipe(undefined, socket.component, new Point(event.posX, event.posY), socket.pos) :
-                                new Pipe(socket.component, undefined, socket.pos, new Point(event.posX, event.posY));
-            this.start = socket;
-        };
-        socket.mouseup = (event) => {
-            let finded = this.sockets.find(e => e.collision(event.posX, event.posY));
-            if (finded !== undefined && socket.type !== finded.type) {
-                if (socket.type === 'output') {
-                    this.linking(socket.component, finded.component);
-                } else {
-                    this.linking(finded.component, socket.component);
-                }
+            this.connections.delete(component);
+            for (const [key, value] of this.connections) {
+                value.delete(component);
             }
 
-            this.pipe  = undefined;  
-            this.start = undefined;
-        };
+            this.objectEvents.delete(component);
+            this.objectEvents.delete(component.input);
+            this.objectEvents.delete(component.output);
+        });
     }
 
     linking(start, end) {
@@ -955,13 +994,44 @@ class Network {
         }
     }
 
-    // draw
+    clear() {
+        this.delete(...this.components);
+    }
+
+    // utility
+
+    setSocketEvent(socket) {
+        socket.mousedown = (event, canvas) => {
+            let x = event.clientX - canvas.getMarginX() - canvas.getOffsetX();
+            let y = event.clientY - canvas.getMarginY() - canvas.getOffsetY();
+
+            this.pipe = socket.type === 'input' ?
+                            new Pipe(undefined, socket.component, new Point(x, y), socket.pos) :
+                            new Pipe(socket.component, undefined, socket.pos, new Point(x, y));
+            this.start = socket;
+        };
+        socket.mouseup = (event, canvas) => {
+            let x = event.clientX - canvas.getMarginX() - canvas.getOffsetX();
+            let y = event.clientY - canvas.getMarginY() - canvas.getOffsetY();
+
+            let finded = this.sockets.find(e => e.collision(x, y));
+            if (finded !== undefined && socket.type !== finded.type) {
+                if (socket.type === 'output') {
+                    this.linking(socket.component, finded.component);
+                } else {
+                    this.linking(finded.component, socket.component);
+                }
+            }
+
+            this.pipe  = undefined;  
+            this.start = undefined;
+        };
+    }
+
+    // tick
 
     tick(time) {
-        // if (time - this.lastTick > Network.TICK) {
-            this.evaluate(time);
-            // this.lastTick = time;
-        // }
+        this.evaluate(time);
     }
 
     draw(ctx, time) {
@@ -972,7 +1042,7 @@ class Network {
         pipes.forEach(pipe => pipe.drawLine(ctx, time));
         pipes.forEach(pipe => pipe.drawPoints(ctx, time));
 
-        this.components.forEach(e => e.draw(ctx, time));
+        this.components.forEach((component) => component.draw(ctx, time));
     }
 
     // animate
@@ -996,120 +1066,198 @@ class Network {
     }
 }
 
+// --------------- utility ---------------
+
+function centermass(objects) {
+    let x = 0;
+    let y = 0;
+    
+    objects.forEach(({ pos }) => {
+        x += pos.getX();
+        y += pos.getY();
+    });
+
+    return new Point(x / objects.length, y / objects.length);
+}
+
+function findpoint(predicate, init, objects) {
+    let x = init;
+    let y = init;
+    
+    objects.forEach(({ pos }) => {
+        x = predicate(x, pos.getX());
+        y = predicate(y, pos.getY());
+    });
+
+    return new Point(x, y);
+}
+
+// --------------- engine ---------------
+
 class NodeEngine {
     constructor(ctx, canvas) {
-        this.ctx    = ctx;
-        this.canvas = canvas;
+        this.ctx    = WrapContext(ctx);
+        this.canvas = WrapCanvas(canvas);
 
-        this.events  = new Events(ctx, canvas);
-        this.network = new Network(this.events);
+        this.events  = new Events(this.canvas);
+        this.objectEvents = new ObjectEvents(this.events); 
+        this.network = new Network(this.events, this.objectEvents);
 
-        this.translate = {
-            dragging: false,
-            start:    new Point(0, 0),
-            offset:   new Point(0, 0)
-        };
+        this.running   = false;
+        this.infcanvas = true;
+
+        this.dragging = true;
         this.events.add('mousedown', (event) => {
-            if (event.button === 1) {
-                this.translate.dragging = true;
-                this.translate.start.set(
-                    event.clientX - this.translate.offset.getX(), 
-                    event.clientY - this.translate.offset.getY()
+            if (event.button === 1 && this.dragging) {
+                this.canvas.transform.dragging = true;
+                this.canvas.transform.start.set(
+                    event.clientX - this.canvas.getOffsetX(),
+                    event.clientY - this.canvas.getOffsetY()
                 );
                 this.canvas.style.cursor = 'grabbing';
             }
         });
         this.events.add('mouseup', (event) => {
-            this.translate.dragging = false;
+            this.canvas.transform.dragging = false;
             this.canvas.style.cursor = 'default';
         });
         this.events.add('mousemove', (event) => {
-            if (this.translate.dragging) {
-                this.translate.offset.set(
-                    event.clientX - this.translate.start.getX(),
-                    event.clientY - this.translate.start.getY() 
+            if (this.canvas.transform.dragging) {
+                this.canvas.transform.offset.set(
+                    event.clientX - this.canvas.transform.start.getX(),
+                    event.clientY - this.canvas.transform.start.getY()
                 );
             }
         });
 
-        this.events.translate = this.translate;
-
-        this.select = {
-            visible: false,
-            start:   new Point(0, 0),
-            end:     new Point(0, 0)  
+        this.radar = {
+            visible:      false,
+            offset:       300,
+            radiusGlobal: 30,
+            radiusLocal:  10
         };
 
         this.events.add('mousedown', (event) => {
-            let object = this.events.objects.find(({ object }) => object.collision(event.posX, event.posY));
-            if (object === undefined && event.button === 0) {
-                this.select.visible = true;
-                this.select.start.set(event.posX, event.posY);
-                this.select.end.set(event.posX, event.posY);
-            }
-        }, 0);
-        this.events.add('mouseup', (event) => {
-            if (this.select.visible) {
-                this.select.visible = false;
-            }
-        }, 0);
-        this.events.add('mousemove', (event) => {
-            if (this.select.visible) {
-                this.select.end.set(event.posX, event.posY);
-            }
-        }, 0);
+            let x = event.clientX - this.canvas.width / 2;
+            let y = event.clientY - this.canvas.height / 2;
+            if (this.radar.visible && x * x + y * y < this.radar.radiusGlobal * this.radar.radiusGlobal) {
+                let center = centermass(this.network.components);
 
-        this.evaluate = true;
-        this.running  = false;
+                let startX = this.canvas.getOffsetX();
+                let startY = this.canvas.getOffsetY();
+
+                let dx = this.canvas.width  / 2 - center.getX() - this.canvas.getOffsetX();
+                let dy = this.canvas.height / 2 - center.getY() - this.canvas.getOffsetY();
+                animate({
+                    wait:     0,
+                    duration: 500,
+                    timing:   Times.smooth,
+                    callback: (time) => {
+                        this.canvas.transform.offset.set(
+                            startX + dx * time,
+                            startY + dy * time
+                        );
+                    }
+                })
+            }
+        });
     }
 
-    setEvaluate(value) {
-        this.evaluate = value;
+    centerit() {
+        let center = centermass(this.network.components);
+        this.canvas.transform.offset.set(
+            this.canvas.width  / 2 - center.getX() * this.canvas.getGlobalScale(),
+            this.canvas.height / 2 - center.getY() * this.canvas.getGlobalScale()
+        );
     }
-
+    
     launch() {
+        this.lasttime = performance.now();
         this.running = true;
 
-        this.lasttime = performance.now();
-
         const frame = (time) => {
-            // console.log(time - this.lasttime);
-            // this.lasttime = time;
-            // this.ctx.resetTransform();
             this.ctx.resetTransform();
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-            
-            this.ctx.translate(this.translate.offset.getX(), this.translate.offset.getY());
-            // this.ctx.translate(-this.canvas.getBoundingClientRect().left, -this.canvas.getBoundingClientRect().top);
+
+            if (this.infcanvas) {
+                this.ctx.infcanvas({
+                    startX: this.canvas.getOffsetX() % 80,
+                    startY: this.canvas.getOffsetY() % 80,
+                    width:  this.canvas.width,
+                    height: this.canvas.height,
+                    spacing: 80,
+                    radius:  2,
+                    color:  'rgba(255, 255, 255, 0.13)'
+                });
+                this.ctx.infcanvas({
+                    startX: this.canvas.getOffsetX() % 20,
+                    startY: this.canvas.getOffsetY() % 20,
+                    width:  this.canvas.width,
+                    height: this.canvas.height,
+                    spacing: 20,
+                    radius:  1,
+                    color:  'rgba(255, 255, 255, 0.13)'
+                });
+            }
+
+            if (this.network.components.length > 0) {
+                let min = findpoint(Math.min, Infinity, this.network.components);
+                let max = findpoint(Math.max, -Infinity, this.network.components);
+                let center = centermass(this.network.components);
+
+                min.x *= this.canvas.getGlobalScale();
+                min.y *= this.canvas.getGlobalScale();
+                max.x *= this.canvas.getGlobalScale();
+                max.y *= this.canvas.getGlobalScale();
+                center.x *= this.canvas.getGlobalScale();
+                center.y *= this.canvas.getGlobalScale();
+                
+                
+                if (
+                    min.getX() + this.canvas.getOffsetX() + this.radar.offset > this.canvas.width  ||
+                    min.getY() + this.canvas.getOffsetY() + this.radar.offset > this.canvas.height ||
+                    max.getX() + this.canvas.getOffsetX() - this.radar.offset < 0 ||
+                    max.getY() + this.canvas.getOffsetY() - this.radar.offset < 0
+                ) {
+                    let x = center.getX() + this.canvas.getOffsetX() - this.canvas.width / 2;
+                    let y = center.getY() + this.canvas.getOffsetY() - this.canvas.height / 2;
+                    
+                    let len = Math.sqrt(x * x + y * y);
+                    
+                    x = x / len * this.radar.radiusGlobal;
+                    y = y / len * this.radar.radiusGlobal;
+                    
+                    
+                    this.ctx.strokeStyle = '#181818';
+                    this.ctx.beginPath();
+                    this.ctx.lineWidth = 3;
+                    this.ctx.arc(this.canvas.width / 2, this.canvas.height / 2, this.radar.radiusGlobal, 0, Math.PI * 2);
+                    this.ctx.stroke();
+                    
+                    this.ctx.fillStyle = '#386AD7';
+                    this.ctx.circle(x + this.canvas.width / 2, y + this.canvas.height / 2, this.radar.radiusLocal);  
+
+                    this.radar.visible = true;
+                } else {
+                    this.radar.visible = false;
+                }
+            }
+
+            this.ctx.translate(this.canvas.getOffsetX(), this.canvas.getOffsetY());
+            this.ctx.scale(this.canvas.getGlobalScale(), this.canvas.getGlobalScale());
 
             this.network.tick(time);
             this.network.draw(this.ctx, time);
-
-            if (this.select.visible) {
-                this.ctx.lineWidth = 2;
-                this.ctx.strokeStyle = '#386AD7';
-                this.ctx.setLineDash([ 10, 5 ]);
-                this.ctx.strokeRect(
-                    this.select.start.getX(), this.select.start.getY(),
-                    this.select.end.getX() - this.select.start.getX(),
-                    this.select.end.getY() - this.select.start.getY()
-                );
-                this.ctx.setLineDash([ ]);
-
-                this.ctx.fillStyle = '#386ad715';
-                this.ctx.fillRect(
-                    this.select.start.getX(), this.select.start.getY(),
-                    this.select.end.getX() - this.select.start.getX(),
-                    this.select.end.getY() - this.select.start.getY()
-                );
-            }
             
-    
             if (this.running) {
                 requestAnimationFrame(frame);
             }
         };
 
         requestAnimationFrame(frame);
+    }
+
+    stop() {
+        this.running = false;
     }
 }
