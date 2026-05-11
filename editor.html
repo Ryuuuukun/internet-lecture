@@ -498,7 +498,7 @@
             const ctx    = canvas.getContext("2d");
 
             function resize() {
-                const dpr = window.devicePixelRatio || 1;
+                let dpr = window.devicePixelRatio || 1;
 
                 canvas.style.width  = window.innerWidth + 'px';
                 canvas.style.height = window.innerHeight + 'px';
@@ -506,7 +506,8 @@
                 canvas.width = window.innerWidth * dpr;
                 canvas.height = window.innerHeight * dpr;
 
-                ctx.scale(dpr, dpr);
+                engine.canvas.setScale(dpr, dpr);
+                engine.centerit();
             }
 
             window.addEventListener('resize', resize);
