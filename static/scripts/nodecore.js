@@ -1187,7 +1187,7 @@ class NodeEngine {
                     height: this.canvas.height,
                     spacing: 80,
                     radius:  2,
-                    color:  'rgba(255, 255, 255, 0.13)'
+                    color:  'rgba(255, 255, 255, 0.11)'
                 });
                 this.ctx.infcanvas({
                     startX: this.canvas.getOffsetX() % 20,
@@ -1196,7 +1196,7 @@ class NodeEngine {
                     height: this.canvas.height,
                     spacing: 20,
                     radius:  1,
-                    color:  'rgba(255, 255, 255, 0.13)'
+                    color:  'rgba(255, 255, 255, 0.11)'
                 });
             }
 
